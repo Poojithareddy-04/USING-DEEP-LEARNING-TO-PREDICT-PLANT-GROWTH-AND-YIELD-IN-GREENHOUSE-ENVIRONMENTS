@@ -1,0 +1,155 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from sklearn.metrics import mean_squared_error
+
+# Initialize the main window
+main = tk.Tk()
+main.title("Crop Yield Prediction using Deep Learning Algorithm")
+main.geometry("1300x1200")
+
+# Global variables
+global filename
+global X_train, X_test., y_ train, y_ test
+global X, Y
+global dataset
+global le
+global model
+global scaler
+# Create a label to display the uploaded file path
+Path label = tk. Label(main, text='', bg='turquoise', fg ='black')
+Path label. place(x=10, y=60)
+def upload():
+    global filename
+    global dataset
+    text. delete('1.0', tk . END)
+    filename = filedialog .ask open filename(initial dir ="Dataset", 
+    filetypes=[("CSV Files", "*.csv")])
+    path label .config(text=filename)  # Update path label with the filename
+    dataset = pd.read_csv(filename)
+    dataset.fillna(0, inplace=True)
+    dataset['Production'] = dataset['Production'].astype(np.int64)
+    text.insert(tk.END, str(dataset.head()) + "\n")
+def processDataset():
+    global le
+    global dataset
+    global X_train, X_test, y_train, y_test
+    global X, Y
+    global scaler
+text.delete('1.0', tk.END)
+    le = LabelEncoder()
+    required_columns = ['State_Name', 'District_Name', 'Season', 'Crop', 'Crop_year', 'Area', 'Production']
+    # Apply Label Encoding to categorical features
+    dataset['State_Name'] = pd.Series(le.fit_transform(dataset['State_Name']))
+    dataset['District_Name'] = pd.Series(le.fit_transform(dataset['District_Name']))
+    dataset['Season'] = pd.Series(le.fit_transform(dataset['Season']))
+    dataset['Crop'] = pd.Series(le.fit_transform(dataset['Crop']))
+ text.insert(tk.END, str(dataset.head()) + "\n")
+ # Feature scaling for input features only
+    scaler = StandardScaler()
+    features = ['State_Name', 'District_Name', 'Crop_year', 'Season', 'Crop', 'Area']
+
+  
+   features = [feature for feature in features if feature in dataset.columns]
+    dataset[features] = scaler.fit_transform(dataset[features])
+    # Prepare input features (X) and target variable (Y)
+    X = dataset[features].values
+    Y = dataset['Production'].values
+    # Reshape for LSTM: (samples, timesteps, features)
+    X = np.reshape(X, (X.shape[0], 1, X.shape[1]))
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
+    text.insert(tk.END, "\n\nTotal records found in dataset: " + str(len(X)) + "\n")
+    text.insert(tk.END, "80% records used to train deep learning algorithm: " + str(X_train.shape[0]) + "\n")
+    text.insert(tk.END, "20% records used to test the deep learning algorithm: " + str(X_test.shape[0]) + "\n")
+def trainModel():
+    global model
+    text.delete('1.0', tk.END)
+    global X_train, X_test, y_train, y_test
+    # Define LSTM model
+    model = Sequential()
+    model.add(LSTM(units=50, return_sequences=True,
+    input shape=(X_train.shape[1],   X_train.shape[2])))
+    model.add(LSTM(units=50))
+    model.add(Dense(units=1))  # Final output layer
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    # Train model and monitor loss
+    history = model.fit(X_train, y_train, batch_size=32, verbose=1)
+    # Evaluate model on test set
+    predict = model.predict(X_test)
+    # Calculate and display RMSE
+    mse = mean_squared_error(y_test, predict)
+    rmse = np.sqrt(mse)
+    text.insert(tk.END, "Training process completed\n")
+    text.insert(tk.END, "LSTM Deep Learning Algorithm Training RMSE Error Rate : " +    str(rmse) + "\n\n")
+def cropYieldPredict():
+    global model
+    global le, scaler
+    text.delete('1.0', tk.END)
+    # Load test data
+    testname = filedialog.askopenfilename(initialdir="Dataset", filetypes=[("CSV Files", "*.csv")])
+    test = pd.read_csv(testname)
+    test.fillna(0, inplace=True)
+    # Apply label encoding and scaling to test data
+    test['State_Name'] = pd.Series(le.fit_transform(test['State_Name']))
+    test['District_Name'] = pd.Series(le.fit_transform(test['District_Name']))
+    test['Season'] = pd.Series(le.fit_transform(test['Season']))
+    test['Crop'] = pd.Series(le.fit_transform(test['Crop']))
+    features = ['State_Name', 'District_Name', 'Crop_year', 'Season', 'Crop', 'Area']
+    features = [feature for feature in features if feature in test.columns]  
+     # Check features in test data
+    test_scaled = scaler.transform(test[features])  
+    # Apply label encoding and scaling to test data
+    # Reshape for LSTM input
+    test_scaled = np.reshape(test_scaled, (test_scaled.shape[0], 1, test_scaled.shape[1]))
+    # Predict using the trained model
+    predictions = model.predict(test_scaled)
+    #for i in range(len(predictions)):
+       # production = predictions[i]
+       # text.insert(tk.END, "Test Record: " + str(test.iloc[i].values) + 
+        " Predicted Production: "    + str(production[0]) + " KGs\n")
+    for i in range(len(predictions)):
+        production = predictions[i] * 100
+        crop_yield = (production / 10000) / 10
+        text.insert(tk.END,"Test Record : "+str(test.iloc[i].values)+" Production would be : "+str(production[0])+" KGs\n")
+        text.insert(tk.END,"Yield would be : "+str(crop_yield)+" KGs/acre\n\n")
+def close():
+    main.destroy()
+# UI Setup
+font = ('times', 16, 'bold')
+title = tk.Label(main, text='Crop Yield Prediction using Deep Learning Algorithm')
+title.config(bg='dark goldenrod', fg='white')
+title.config(font=font)
+title.config(height=3, width=120)
+title.place(x=0, y=5)
+font1 = ('times', 14, 'bold')
+upload = tk.Button(main, text="Upload Crop Dataset", command=upload)
+upload.place(x=700, y=100)
+upload.config(font=font1)
+processButton = tk.Button(main, text="Preprocess Dataset", command=processDataset)
+processButton.place(x=700, y=150)
+processButton.config(font=font1)
+mlButton = tk.Button(main, text="Train Deep Learning Algorithm", command=trainModel)
+mlButton.place(x=700, y=200)
+mlButton.config(font=font1)
+predictButton = tk.Button(main, text="Upload Test Data & Predict Yield", command=cropYieldPredict)
+predictButton.place(x=700, y=250)
+predictButton.config(font=font1)
+closeButton = tk.Button(main, text="Close", command=close)  # Call 'close' when clicked
+closeButton.place(x=700, y=300)
+closeButton.config(font=font1)
+font1 = ('times', 12, 'bold')
+text = tk.Text(main, height=30, width=80)
+scroll = tk.Scrollbar(text)
+text.configure(yscrollcommand=scroll.set)
+text.place(x=10, y=100)
+text.config(font=font1)
+# Set background color for main window
+main.config(bg='turquoise')
+# Start the Tkinter event loop
+main.mainloop()
